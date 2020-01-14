@@ -9,15 +9,18 @@
 
 //for DHT22 sensor
 #include <DHT.h>
-#include <DHT_U.h> // or alternatively; #include <Adafruit_Sensor.h>
+//#include <DHT_U.h>
+#include <Adafruit_Sensor.h>
 
 //for DS3231 RTC
 #include <RtcDS3231.h>
+#include <Wire.h> // #include <SoftwareWire.h> --> only required if using sneaky software I2C
+// wire.h = I2C
+// spi.h = SPI
 
 //universal inclusions
 #include <SoftwareSerial.h>
 #include <SPI.h>
-#include <Wire.h>
 
 // generic definitions
 // *******************************************************************************************************************************************************************************
@@ -32,7 +35,6 @@
 
 // TFTLCD stuff
 // *******************************************************************************************************************************************************************************
-//old definitions
 #define LCD_RESET A4 // LCD reset pin is connected to A4
 #define LCD_CS    A3 // LCD chip select pin is connected to A3
 #define LCD_CD    A2 // LCD command/data pin is connected to A2
@@ -56,8 +58,8 @@ lib_deps =
 // *******************************************************************************************************************************************************************************
 #define TXpin 10
 #define RXpin 11
-SoftwareSerial HC12(TXpin, RXpin); // TX pin on HC-12, RX pin on HC-12
 #define setPin 22
+SoftwareSerial HC12(TXpin, RXpin); // TX pin on HC-12, RX pin on HC-12
 
 char HCinput;
 String HCinputString;
@@ -76,8 +78,17 @@ bool connectedFlag = false;
 
 // DHT22 variable definitions
 // *******************************************************************************************************************************************************************************
+#define DHTPin 23
+#define DHTType DHT22 //AM2302
+DHT dht(DHTPin, DHTType);
+
 float innerTemp;
 float innerHumid;
+
+// DS3231 variable definitions
+// *******************************************************************************************************************************************************************************
+RtcDS3231<TwoWire> Rtc(Wire);
+
 
 // graphics variable definitions
 // *******************************************************************************************************************************************************************************
@@ -380,6 +391,41 @@ void splashScreen() {
 
 // DS3231 functions
 // *******************************************************************************************************************************************************************************
+void checkRTC() {
+  if (!Rtc.IsDateTimeValid()) 
+    {
+        if (Rtc.LastError() != 0)
+        {
+            // we have a communications error
+            // see https://www.arduino.cc/en/Reference/WireEndTransmission for 
+            // what the number means
+            Serial.print("RTC communications error = ");
+            Serial.println(Rtc.LastError());
+        }
+        else
+        {
+            // Common Causes:
+            //    1) the battery on the device is low or even missing and the power line was disconnected
+            Serial.println("RTC lost confidence in the DateTime!");
+        }
+    }
+}
+
+#define countof(a) (sizeof(a) / sizeof(a[0]))
+void printDateTime(const RtcDateTime& dt) {
+    char datestring[20];
+
+    snprintf_P(datestring, 
+            countof(datestring),
+            PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
+            dt.Month(),
+            dt.Day(),
+            dt.Year(),
+            dt.Hour(),
+            dt.Minute(),
+            dt.Second() );
+    Serial.print(datestring);
+}
 
 // DHT22 functions
 // *******************************************************************************************************************************************************************************
@@ -443,17 +489,20 @@ void splashScreen() {
 
 
 
-
-
-
-
-
-
-
+// void setup()
+// *******************************************************************************************************************************************************************************
+// *******************************************************************************************************************************************************************************
+// *******************************************************************************************************************************************************************************
+// *******************************************************************************************************************************************************************************
 void setup() {
   Serial.begin(9600);
-  Serial.println("ILI9341 Test!");
+  Serial.print("compile date + time: ");
+  Serial.print(__DATE__);
+  Serial.println();
+  Serial.println(__TIME__);
 
+  // TFT start procedures
+  // *********************************************************************************************************
   tft.reset();
   delay(1700);
   uint16_t identifier = tft.readID();
@@ -462,21 +511,71 @@ void setup() {
   delay(100);
   tft.begin(identifier);
   tft.setRotation(1);
-
   displWidth = tft.width();
   displHeight = tft.height();
   Serial.print("TFT size is "); Serial.print(tft.width()); Serial.print("x"); Serial.println(tft.height());
-  //splashScreen();
+  delay(40);
+
+  // RTC (DS3231) start procedures
+  // *********************************************************************************************************
+  // RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
+  // Rtc.SetDateTime(compiled);
+  Rtc.Begin();
+  checkRTC();
+
+  // DHT22 start procedures
+  // *********************************************************************************************************
+  dht.begin();
+
+  // HC-12 start procedures
+  // *********************************************************************************************************
+  HC12.begin(9600);
+
+  // HC-12 remembers the channel after a reboot, so this next section isn't strictly needed
+  pinMode(setPin, OUTPUT);
+  digitalWrite(setPin, LOW); //set LOW to enter AT command mode, set HIGH for normal operation
+  delay(100);
+  HC12.write("AT+C002");
+  delay(700);
+  while(HC12.available()) { //so HC-12 can confirm channel settings
+    Serial.write(HC12.read());
+    // must be Serial.write not Serial.print
+    // because it will echo character values if .print and actual characters if .write
+  }
+  digitalWrite(setPin, HIGH);
+
+  // display the splash screen
+  splashScreen();
 }
 
-void loop() {
-  tft.fillScreen(BLACK);
-  tft.fillScreen(RED);
-  tft.fillScreen(GREEN);
-  tft.fillScreen(BLUE);
-  tft.fillScreen(BLACK);
-  splashScreen();
-  delay(9000);
 
-  Serial.println("looped");
+
+
+
+
+
+// void loop()
+// *******************************************************************************************************************************************************************************
+// *******************************************************************************************************************************************************************************
+// *******************************************************************************************************************************************************************************
+// *******************************************************************************************************************************************************************************
+void loop() {
+  delay(8000);
+  RtcDateTime now = Rtc.GetDateTime();
+  //RtcDateTime(year, month, dayOfMonth, hour, minute, second);
+  // now.year or etc to print it out
+  printDateTime(now);
+
+  RtcTemperature temp = Rtc.GetTemperature();
+  Serial.println();
+  Serial.print("Temperature: ");
+	temp.Print(Serial);
+  Serial.print(" degrees C");
+  Serial.println();
+  Serial.println(F("------------------------------------"));
+  Serial.println(dht.readTemperature());
+  Serial.println(dht.readHumidity());
+
+  Serial.println();
+  Serial.println();
 }
