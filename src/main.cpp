@@ -67,14 +67,14 @@ float DataBuffer[7]; //7 elements in array
 
 // UI variable definitions
 // *******************************************************************************************************************************************************************************
-bool OutputFlag = false;
-bool mainWrittenFlag = false;
-bool menuWrittenFlag = false;
-bool mainScreenFlag = true;
-bool menuScreenFlag = false;
-bool TFTWrittenFlag = false;
-uint16_t connectionCheck = 1000;
-bool connectedFlag = false;
+bool OutputFlag           = false;
+bool mainWrittenFlag      = false;
+bool menuWrittenFlag      = false;
+bool mainScreenFlag       = true;
+bool menuScreenFlag       = false;
+bool TFTWrittenFlag       = false;
+uint16_t connectionCheck  = 1000;
+bool connectedFlag        = false;
 
 // DHT22 variable definitions
 // *******************************************************************************************************************************************************************************
@@ -82,8 +82,10 @@ bool connectedFlag = false;
 #define DHTType DHT22 //AM2302
 DHT dht(DHTPin, DHTType);
 
-float innerTemp;
-float innerHumid;
+
+// voltage sensor definitions
+// *******************************************************************************************************************************************************************************
+#define voltagePin A8
 
 // DS3231 variable definitions
 // *******************************************************************************************************************************************************************************
@@ -110,6 +112,7 @@ uint16_t mainRectStartY;
 uint16_t mainRectTextBuffer;
 uint16_t statusBarYStart;
 uint16_t statusBarWidth;
+//don't all need to be 16, should be 8 instead or lower
 
 int charWidth = 6;
 int charHeight = 8;
@@ -183,7 +186,7 @@ void mainGUI() {
   //1st column
   smallWhiteText(4,4);
   tft.print("OUTSIDE");
-    
+
   smallWhiteText((displWidth - (mainRectWidth+mainRectYSepDist)+1),4);
   tft.print("INSIDE");
     
@@ -254,27 +257,31 @@ void mainGUI() {
 
   mainRectangle(4+(2*mainRectWidth)+(2*mainRectXSepDist),mainRectStartY+(2*mainRectHeight)+(2*mainRectYSepDist));
   smallWhiteText(8+(2*mainRectWidth)+(2*mainRectXSepDist),mainRectStartY+(2*mainRectHeight)+(2*mainRectYSepDist)+(mainRectHeight-2*(mainRectTextBuffer)));
-  tft.print("????");
+  tft.print("Volts");
 
   mainRectangle(4+(2*mainRectWidth)+(2*mainRectXSepDist),mainRectStartY+(3*mainRectHeight)+(3*mainRectYSepDist));
   smallWhiteText(8+(2*mainRectWidth)+(2*mainRectXSepDist),mainRectStartY+(3*mainRectHeight)+(3*mainRectYSepDist)+(mainRectHeight-2*(mainRectTextBuffer)));
   tft.print("?????");
 
-  tft.fillRect(displWidth-(4*(2*charWidth)+8),displHeight-((2*charHeight)+8),4*(2*charWidth)+8,2*charHeight+8,WHITE);
+  /*tft.fillRect(displWidth-(4*(2*charWidth)+8),displHeight-((2*charHeight)+8),4*(2*charWidth)+8,2*charHeight+8,WHITE);
   tft.setCursor(displWidth-(4*(2*charWidth)+4),displHeight-((2*charHeight)+4));
   tft.setTextSize(2);
   tft.setTextColor(BLACK);
   tft.print("Menu");
   //tft.drawBitmap(displWidth-35,displHeight-35,settingsIcon,20,20,WHITE);
+  */
 
   mainWrittenFlag = true;
 }
 
-
 void splashScreen() {
+  //!!!!!WARNING!!!!!
+  //this function uses only int variables, which have a maxiumum of 256.
+  //this means, if there are any display overflow errors, it is due to this
+  //just something to take into consideration
+
   tft.fillScreen(BLACK);
   int wait1;
-  int wait2;
 
   int numLetters;
   numLetters = 6;
@@ -285,7 +292,7 @@ void splashScreen() {
   int mRect_xSideBuffer; //x buffer for the first and last rectangles
   int mRect_adjacentBuffer; //x buffer between rectangles
   int mRect_xPositions[numLetters]; //6 = number of elements in array, since there are 6 letters, we have 6 places
-                           //at 5 since 0 is an index as well (0-5 = 6)
+  //at 5 since 0 is an index as well (0-5 = 6)
 
   int mainText_xBuffer;
   int mainText_yBuffer;
@@ -304,7 +311,6 @@ void splashScreen() {
   // variable definitions
   // ************************************************************************************
   wait1 = 70;
-  wait2 = 50;
 
   mRect_xSideBuffer = 14; //placeholder value
   mRect_adjacentBuffer = 10;
@@ -358,7 +364,7 @@ void splashScreen() {
       mRect_yBuffer + mainText_yBuffer
     );
     tft.print(mainTextLetters[i]);
-    delay(wait2);
+    delay(wait1);
   }
   delay(700);
 
@@ -371,6 +377,7 @@ void splashScreen() {
 
   tft.setCursor(sloganText_xPosition, sloganText_yPosition);
   tft.print("Blurring the line between useful and useless"); //44 chars
+  delay(wait1);
 
   // copyright text
   // ************************************************************************************
@@ -384,6 +391,7 @@ void splashScreen() {
 
   tft.setCursor(subText_xPosition[0], subText_yPosition[0]);
   tft.print("TetrOS ALPHA");
+  delay(wait1);
 
   tft.setCursor(subText_xPosition[1], subText_yPosition[1]);
   tft.print("Copyright 2020 TetrOS");
@@ -427,19 +435,7 @@ void printDateTime(const RtcDateTime& dt) {
     Serial.print(datestring);
 }
 
-// DHT22 functions
-// *******************************************************************************************************************************************************************************
-
-
-/*void getTime() {
-  currentTime = rtc.getTimeStr(1); // 0 = hh:mm:ss, 1 = hh:mm
-  DOW = rtc.getDOWStr(1); // 0 = full english day of week, 1 = abbreviated form
-  Date = rtc.getDateStr(1,1,'/'); // year format, overall format, separator
-  int dateLen = Date.length();
-  Date.remove((dateLen-3));
-}*/
-
-/*void displayTime() {
+void displayTime(String in) {
   tft.fillRect(8,statusBarYStart,statusBarWidth,(2*charHeight),BLACK);
   // clears out stale date/time data by making it black then rewriting
   // accompanied by annoying data flash on screen
@@ -447,20 +443,100 @@ void printDateTime(const RtcDateTime& dt) {
   tft.setTextSize(2);
   tft.setCursor(8,statusBarYStart);
   tft.setTextColor(WHITE);
-  tft.print(currentTime); // includes leading zeroes
-  tft.print(" ");
-  tft.print(DOW);
-  tft.print(" ");
-  tft.print(Date);
+  tft.print(in);
   // code to update it every minute
   // ONLY EVERY MINUTE
   // use micros() or something
   // doesn't need to be exact
-}*/
+}
 
-/*void innerVars() {
+String convertDOW(int DOW) {
+  String outbound;
+  switch(DOW) {
+      case 1:
+        outbound = "Mon";
+        break;
+      case 2:
+        outbound = "Tue";
+        break;
+      case 3:
+        outbound = "Wed";
+        break;
+      case 4:
+        outbound = "Thu";
+        break;
+      case 5:
+        outbound = "Fri";
+        break;
+      case 6:
+        outbound = "Sat";
+        break;
+      case 7:
+        outbound = "Sun";
+        break;
+      default:
+        outbound = "ERR";
+        break;
+    }
+    return outbound;
+}
+
+String getTime() { //only use void if function has no returns, if it has returns, use the datatype you're returning
+  String day;
+  String month;
+  String year;
+  int DOW;
+  String strDOW;
+  String hour;
+  String minute;
+  String currTime;
+  String date;
+  String outbound; //string to return to the function call
+
+  RtcDateTime now = Rtc.GetDateTime();
+  DOW = now.DayOfWeek();
+  day = now.Day();
+  month = now.Month();
+  year = now.Year();
+  hour = now.Hour();
+  minute = now.Minute();
+
+  strDOW = convertDOW(DOW);
+
+  currTime = hour+":"+minute;
+  date = strDOW + " " + day+"/"+month+"/"+year;
+
+  outbound = currTime + " " + date;
+
+  return outbound;
+}
+
+
+// Sensor functions (DHT22, VBAT)
+// *******************************************************************************************************************************************************************************
+float getVolts() {
+  float voltage;
+  int sensorValue;
+
+  sensorValue = analogRead(voltagePin);
+  voltage = sensorValue * (5.0 / 1023.0);
+  Serial.println();
+  Serial.println(sensorValue);
+  Serial.println(voltage);
+  Serial.println();
+
+  return voltage;
+}
+
+void innerVars() {
+  float innerTemp;
+  float innerHumid;
+  //float innerVoltage;
+
   innerTemp = dht.readTemperature();
   innerHumid = dht.readHumidity();
+  //innerVoltage = getVolts();
+
   // For column 3 (inside column)
   tft.fillRect(4+(2*mainRectWidth)+(2*mainRectXSepDist)+mainRectTextBuffer,mainRectStartY+mainRectTextBuffer,4*(2*charWidth),(2*charHeight),BLACK);
   mediumWhiteText(4+(2*mainRectWidth)+(2*mainRectXSepDist)+mainRectTextBuffer,mainRectStartY+mainRectTextBuffer);
@@ -474,11 +550,13 @@ void printDateTime(const RtcDateTime& dt) {
   tft.print(innerHumid);
   //tft.print("00.00");
   // inside DHT humidity
-}*/
 
-
-
-
+  tft.fillRect(4+(2*mainRectWidth)+(2*mainRectXSepDist)+mainRectTextBuffer,mainRectStartY+(2*mainRectHeight)+(2*mainRectYSepDist)+mainRectTextBuffer,4*(2*charWidth),(2*charHeight),BLACK);
+  mediumWhiteText(4+(2*mainRectWidth)+(2*mainRectXSepDist)+mainRectTextBuffer,mainRectStartY+(2*mainRectHeight)+(2*mainRectYSepDist)+mainRectTextBuffer);
+  tft.print(getVolts());
+  //tft.print("00.00");
+  // inside voltage sensor
+}
 
 
 
@@ -500,6 +578,8 @@ void setup() {
   Serial.print(__DATE__);
   Serial.println();
   Serial.println(__TIME__);
+  Serial.println();
+  Serial.println();
 
   // TFT start procedures
   // *********************************************************************************************************
@@ -516,6 +596,18 @@ void setup() {
   Serial.print("TFT size is "); Serial.print(tft.width()); Serial.print("x"); Serial.println(tft.height());
   delay(40);
 
+  // GUI variables setup
+  // *********************************************************************************************************
+  mainRectWidth  = ((displWidth/3)-10);
+  mainRectHeight = ((displHeight/4)-20);
+  mainRectYSepDist   = 8;
+  mainRectXSepDist   = 10;
+  mainRectTextBuffer = 6;
+  mainRectStartY     = 8 + charHeight;
+
+  statusBarYStart    = displHeight - ((2*charHeight)+10);
+  statusBarWidth     = (15*(2*charWidth));
+
   // RTC (DS3231) start procedures
   // *********************************************************************************************************
   // RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
@@ -527,9 +619,13 @@ void setup() {
   // *********************************************************************************************************
   dht.begin();
 
+  // voltage sensor start procedures
+  // *********************************************************************************************************
+  pinMode(voltagePin, INPUT);
+
   // HC-12 start procedures
   // *********************************************************************************************************
-  HC12.begin(9600);
+  HC12.begin(9600); //9600 baud
 
   // HC-12 remembers the channel after a reboot, so this next section isn't strictly needed
   pinMode(setPin, OUTPUT);
@@ -546,12 +642,8 @@ void setup() {
 
   // display the splash screen
   splashScreen();
+  delay(4500);
 }
-
-
-
-
-
 
 
 // void loop()
@@ -559,23 +651,233 @@ void setup() {
 // *******************************************************************************************************************************************************************************
 // *******************************************************************************************************************************************************************************
 // *******************************************************************************************************************************************************************************
+/*
+
+delay(8000);
+RtcDateTime now = Rtc.GetDateTime();
+//RtcDateTime(year, month, dayOfMonth, hour, minute, second);
+// now.year or etc to print it out
+printDateTime(now);
+
+RtcTemperature temp = Rtc.GetTemperature();
+Serial.println();
+Serial.print("Temperature: ");
+temp.Print(Serial);
+Serial.print(" degrees C");
+Serial.println();
+Serial.println(F("------------------------------------"));
+Serial.println(dht.readTemperature());
+Serial.println(dht.readHumidity());
+
+Serial.println();
+Serial.println();
+
+*/
 void loop() {
-  delay(8000);
-  RtcDateTime now = Rtc.GetDateTime();
-  //RtcDateTime(year, month, dayOfMonth, hour, minute, second);
-  // now.year or etc to print it out
-  printDateTime(now);
+  //drawing main screens
+  // *********************************************************************************************************
+  if(mainScreenFlag == true && TFTWrittenFlag == false) {
+    tft.fillScreen(BLACK);
+    mainGUI();
+    TFTWrittenFlag = true;
+  }
+  if(menuScreenFlag == true && TFTWrittenFlag == false) {
+    tft.fillScreen(BLACK);
+    displayMenu();
+    TFTWrittenFlag = true;
+  }
 
-  RtcTemperature temp = Rtc.GetTemperature();
-  Serial.println();
-  Serial.print("Temperature: ");
-	temp.Print(Serial);
-  Serial.print(" degrees C");
-  Serial.println();
-  Serial.println(F("------------------------------------"));
-  Serial.println(dht.readTemperature());
-  Serial.println(dht.readHumidity());
+  //HC-12 data scanning code
+  // *********************************************************************************************************
+  while(HC12.available()) {
+    delay(2); // stability
+    if(connectedFlag == false) {
+      tft.fillRect(4+(7*charWidth)+mainRectXSepDist,4,12*charWidth,charHeight,BLACK);
+      delay(20);
+      tft.setCursor(4+(7*charWidth)+mainRectXSepDist,4);
+      tft.setTextSize(1);
+      tft.setTextColor(GREEN);
+      tft.print("CONNECTED");
+      connectionCheck = 0;
+      connectedFlag = true;
+    }
+    delay(2);
+    connectedFlag = true;
+    HCinput = HC12.read();
+    switch(HCinput) {
+      case 'A':
+        // must use single quotes instead of double quotes above so
+        // C++ recognises it as a char not string
+        DataBuffer[0] = HCinputString.toFloat();
+        // DHT temp
+        HCinputString = "";
+        break;
+      case 'B':
+        DataBuffer[1] = HCinputString.toFloat();
+        // DHT humid
+        HCinputString = "";
+        break;
+      case 'C':
+        DataBuffer[2] = HCinputString.toFloat();
+        // BMP temp
+        HCinputString = "";
+        break;
+      case 'D':
+        DataBuffer[3] = HCinputString.toFloat();
+        // BMP press
+        HCinputString = "";
+        break;
+      case 'E':
+        DataBuffer[4] = HCinputString.toFloat();
+        // Voltage
+        HCinputString = "";
+        break;
+      case 'F':
+        DataBuffer[5] = HCinputString.toFloat();
+        // Lux
+        HCinputString = "";
+        break;
+      case 'G':
+        DataBuffer[6] = HCinputString.toFloat();
+        // Soil
+        HCinputString = "";
+        OutputFlag = true;
+        break;
+      default:
+        HCinputString += HCinput;
+        break;
+    }
+  }
 
-  Serial.println();
-  Serial.println();
+  //data outputting code
+  // *********************************************************************************************************
+  displayTime(getTime());
+  if(mainScreenFlag == true) { //if on main screen and UI already drawn
+    innerVars();
+  }
+  if(menuScreenFlag == true) {
+    //
+  }
+
+
+  //main screen remote data output
+  // *********************************************************************************************************
+  // *********************************************************************************************************
+  if(OutputFlag == true && mainScreenFlag == true) {
+    delay(20);
+    
+    DataBuffer[3] = round(DataBuffer[3]); // rounds hPa value
+    String pressStr = String(DataBuffer[3]);
+    int pressStrLen = pressStr.length();
+    pressStr.remove(pressStrLen-3);
+    // rounds off atmospheric pressure value and converts it from hPa to kPa YOTE'D'VE
+
+    String soilStr = String(DataBuffer[6]);
+    int soilStrLen = soilStr.length();
+    soilStr.remove(soilStrLen-3);
+
+    // For column 1
+    tft.fillRect(4+mainRectTextBuffer,mainRectStartY+mainRectTextBuffer,5*(2*charWidth),(2*charHeight),BLACK);
+    mediumWhiteText(4+mainRectTextBuffer,mainRectStartY+mainRectTextBuffer);
+    tft.print(DataBuffer[0]);
+    //tft.print("00.00");
+    //DHT temp
+
+    tft.fillRect(4+mainRectTextBuffer,mainRectStartY+mainRectHeight+mainRectYSepDist+mainRectTextBuffer,5*(2*charWidth),(2*charHeight),BLACK);
+    mediumWhiteText(4+mainRectTextBuffer,mainRectStartY+mainRectHeight+mainRectYSepDist+mainRectTextBuffer);
+    tft.print(DataBuffer[1]);
+    //tft.print("00.00");
+    //DHT humidity
+
+    tft.fillRect(4+mainRectTextBuffer,mainRectStartY+(2*mainRectHeight)+(2*mainRectYSepDist)+mainRectTextBuffer,5*(2*charWidth),(2*charHeight),BLACK);
+    mediumWhiteText(4+mainRectTextBuffer,mainRectStartY+(2*mainRectHeight)+(2*mainRectYSepDist)+mainRectTextBuffer);
+    tft.print(pressStr);
+    //tft.print("0000.00");
+    //BMP press
+
+    tft.fillRect(4+mainRectTextBuffer,mainRectStartY+(3*mainRectHeight)+(3*mainRectYSepDist)+mainRectTextBuffer,7*(2*charWidth),(2*charHeight),BLACK);
+    mediumWhiteText(4+mainRectTextBuffer,mainRectStartY+(3*mainRectHeight)+(3*mainRectYSepDist)+mainRectTextBuffer);
+    tft.print(DataBuffer[5]);
+    //tft.print("0000.00");
+    //Lux
+
+    // For column 2
+    tft.fillRect(4+mainRectWidth+mainRectXSepDist+mainRectTextBuffer,mainRectStartY+mainRectTextBuffer,5*(2*charWidth),(2*charHeight),BLACK);
+    mediumWhiteText(4+mainRectWidth+mainRectXSepDist+mainRectTextBuffer,mainRectStartY+mainRectTextBuffer);
+    tft.print(DataBuffer[2]);
+    //tft.print("00.00");
+    //BMP temp
+    
+    tft.fillRect(4+mainRectWidth+mainRectXSepDist+mainRectTextBuffer,mainRectStartY+mainRectHeight+mainRectYSepDist+mainRectTextBuffer,5*(2*charWidth),(2*charHeight),BLACK);
+    mediumWhiteText(4+mainRectWidth+mainRectXSepDist+mainRectTextBuffer,mainRectStartY+mainRectHeight+mainRectYSepDist+mainRectTextBuffer);
+    tft.print(DataBuffer[4]);
+    //tft.print("00.00");
+    //voltage (external)
+    
+    tft.fillRect(4+mainRectWidth+mainRectXSepDist+mainRectTextBuffer,mainRectStartY+(2*mainRectHeight)+(2*mainRectYSepDist)+mainRectTextBuffer,4*(2*charWidth),(2*charHeight),BLACK);
+    mediumWhiteText(4+mainRectWidth+mainRectXSepDist+mainRectTextBuffer,mainRectStartY+(2*mainRectHeight)+(2*mainRectYSepDist)+mainRectTextBuffer);
+    tft.print(soilStr);
+    tft.print("%");
+    //tft.print ("00%");
+    //soil moisture
+    
+    connectionCheck = 0;
+    delay(1);
+    OutputFlag = false;
+  }
+
+
+  //code for when HC12 does not have data -- UNNECESSARY AND SHOULD BE EXCISED FROM THIS PROJECT LIKE THE TUMOR IT IS
+  // *********************************************************************************************************
+  while(!(HC12.available())) {
+    delay(10);
+    ++connectionCheck;
+    if(mainScreenFlag == true) {
+      
+    }
+    if(menuScreenFlag == true) {
+      
+    }
+    if(connectionCheck == 400 || connectionCheck == 800) {
+      if(mainScreenFlag == true) {
+        innerVars();
+      }
+    }
+    if(connectionCheck == 1200) {
+      tft.fillRect(4+(7*charWidth)+mainRectXSepDist,4,12*charWidth,charHeight,BLACK);
+      tft.setCursor(4+(7*charWidth)+mainRectXSepDist,4);
+      tft.setTextSize(1);
+      tft.setTextColor(RED);
+      tft.print("DISCONNECTED");
+      displayTime(getTime());
+      if(mainScreenFlag == true) {
+        innerVars();
+      }
+      connectionCheck = 0;
+      connectedFlag = false;
+      delay(60);
+    }
+    if(connectedFlag == false && TFTWrittenFlag == false) {
+      tft.fillRect(4+(7*charWidth)+mainRectXSepDist,4,12*charWidth,charHeight,BLACK);
+      tft.setCursor(4+(7*charWidth)+mainRectXSepDist,4);
+      tft.setTextSize(1);
+      tft.setTextColor(RED);
+      tft.print("DISCONNECTED");
+      connectedFlag = false;
+      delay(60);
+    }
+    if(mainScreenFlag == true && TFTWrittenFlag == false) {
+      tft.fillScreen(BLACK);
+      mainGUI();
+      displayTime(getTime());
+      innerVars();
+      TFTWrittenFlag = true;
+    }
+    if(menuScreenFlag == true && TFTWrittenFlag == false) {
+      tft.fillScreen(BLACK);
+      displayMenu();
+      displayTime(getTime());
+      TFTWrittenFlag = true;
+    }
+  }
 }
