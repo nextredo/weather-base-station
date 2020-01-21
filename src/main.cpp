@@ -453,6 +453,9 @@ void displayTime(String in) {
 String convertDOW(int DOW) {
   String outbound;
   switch(DOW) {
+      case 0:
+        outbound = "Sun";
+        break;
       case 1:
         outbound = "Mon";
         break;
@@ -475,8 +478,13 @@ String convertDOW(int DOW) {
         outbound = "Sun";
         break;
       default:
-        outbound = "ERR";
-        break;
+        outbound = "Sun";
+        //assuming you simply need to set default case to sunday, as I believe this is listed as 0/null by the RTC library
+        // this can be seen in RtcDateTime.h at line 126 --> static uint8_t ConvertDowToRtc(uint8_t dow)
+
+        //String DOWtemp = now.DayOfWeek().ConvertRtcToDow();
+        //Serial.println("DOWtemp: " + DOWtemp);
+              break;
     }
     return outbound;
 }
@@ -494,6 +502,7 @@ String getTime() { //only use void if function has no returns, if it has returns
   String outbound; //string to return to the function call
 
   RtcDateTime now = Rtc.GetDateTime();
+
   DOW = now.DayOfWeek();
   day = now.Day();
   month = now.Month();
@@ -506,11 +515,13 @@ String getTime() { //only use void if function has no returns, if it has returns
   currTime = hour+":"+minute;
   date = strDOW + " " + day+"/"+month+"/"+year;
 
+  //Serial.println("strDOW: " + strDOW);
+  //Serial.println("DOW: " + DOW);
+
   outbound = currTime + " " + date;
 
   return outbound;
 }
-
 
 // Sensor functions (DHT22, VBAT)
 // *******************************************************************************************************************************************************************************
@@ -559,14 +570,6 @@ void innerVars() {
 }
 
 
-
-
-
-
-
-
-
-
 // void setup()
 // *******************************************************************************************************************************************************************************
 // *******************************************************************************************************************************************************************************
@@ -577,7 +580,7 @@ void setup() {
   Serial.print("compile date + time: ");
   Serial.print(__DATE__);
   Serial.println();
-  Serial.println(__TIME__);
+  Serial.println(__TIME__);                                  
   Serial.println();
   Serial.println();
 
